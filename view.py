@@ -67,6 +67,7 @@ class SystemUpdaterView(SectionView):
         self._model = model.SystemUpdaterModel()
         self._model.connect('progress', self.__progress_cb)
         self._model.connect('finished', self.__finished_cb)
+        self._model.connect('error', self.__error_cb)
 
         self._initialize()
 
@@ -165,7 +166,7 @@ class SystemUpdaterView(SectionView):
         else:
             self._switch_to_update_box(packages)
 
-    def __error_cb(self, model):
+    def __error_cb(self, model, code):
         logging.debug('SystemUpdater.__error_cb')
         top_message = _('Can\'t connect to the activity server')
         self._top_label.set_markup('<big>%s</big>' % top_message)

@@ -32,6 +32,8 @@ class SystemUpdaterModel(GObject.GObject):
                                      arg_types=([int, float, object]))
     finished_signal = GObject.Signal('finished',
                                      arg_types=([int, bool, object]))
+    error_signal = GObject.Signal('error',
+                                   arg_types=([str]))
 
     def __init__(self):
         GObject.GObject.__init__(self)
@@ -48,6 +50,7 @@ class SystemUpdaterModel(GObject.GObject):
         transaction = self._client.update_cache()
         transaction.connect('progress-details-changed', self.__details_cb)
         transaction.connect('finished', self.__refresh_finished_cb)
+        transaction.connect('error', self.__error_cb)
         transaction.run()
         logging.debug('refresh-out')
 
@@ -56,6 +59,7 @@ class SystemUpdaterModel(GObject.GObject):
         self._state = self.STATE_CHECKING
         transaction = self._client.upgrade_system()
         transaction.connect('dependencies-changed', self.__check_finished_cb)
+        transaction.connect('error', self.__error_cb)
         GLib.idle_add(transaction.simulate)
         logging.debug('check-out')
 
@@ -65,15 +69,27 @@ class SystemUpdaterModel(GObject.GObject):
         transaction = self._client.upgrade_packages(packages)
         transaction.connect('progress-download-changed', self.__download_cb)
         transaction.connect('finished', self.__update_finished_cb)
+        transaction.connect('error', self.__error_cb)
         transaction.run()
         logging.debug('update-out')
 
     def cancel(self):
         pass
 
+    def __error_cb(self, transaction, code, details):
+        logging.debug('__error_cb %s', str(code))
+        try:
+            transaction.cancel()
+        except:
+            logging.error('Could not cancel transaction.')
+        self.error_signal.emit(code)
+
     def __refresh_finished_cb(self, transaction, status):
         logging.debug('__updates_finished_cb %s', status)
-        self.finished_signal.emit(self._state, True, None)
+        if status != 'exit-success':
+            self.error_signal.emit(status)
+        else:
+            self.finished_signal.emit(self._state, True, None)
 
     def __check_finished_cb(self, transaction, installs, reinstalls,
                             removals, purges, upgrades, downgrades, kepts):
@@ -87,6 +103,9 @@ class SystemUpdaterModel(GObject.GObject):
 
     def __update_finished_cb(self, transaction, status):
         logging.debug('__update_finished_cb %s', status)
+        if status != 'exit-success':
+            self.error_signal.emit(status)
+            return
         packages = []
         for package in transaction.packages[4]:
             packages.append(str(package))
