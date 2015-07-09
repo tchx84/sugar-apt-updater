@@ -87,7 +87,10 @@ class SystemUpdaterModel(GObject.GObject):
 
     def __update_finished_cb(self, transaction, status):
         logging.debug('__update_finished_cb %s', status)
-        self.finished_signal.emit(self._state, True, [''])
+        packages = []
+        for package in transaction.packages[4]:
+            packages.append(str(package))
+        self.finished_signal.emit(self._state, True, packages)
 
     def __details_cb(self, transaction, current_items, total_items,
                      current_bytes, total_bytes, current_cps, eta):
