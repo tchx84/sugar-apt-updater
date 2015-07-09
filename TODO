@@ -1,0 +1,5 @@
+[ ] handle all aptdaemon errors.
+[ ] detect progress for update_system.simulate.
+[ ] calculate progress for update_packages.run.
+[ ] determine individual packages size.
+[ ] use polkit authentication for more complex operations.
