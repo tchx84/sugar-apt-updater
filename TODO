@@ -3,3 +3,4 @@
 [ ] calculate progress for update_packages.run.
 [ ] determine individual packages size.
 [ ] use polkit authentication for more complex operations.
+[ ] allow cancel.
