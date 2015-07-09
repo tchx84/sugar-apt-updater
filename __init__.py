@@ -16,7 +16,7 @@
 
 from gettext import gettext as _
 
-CLASS = 'SystemUpdater'
+CLASS = 'SystemUpdaterView'
 ICON = 'module-updater'
 TITLE = _('System Update')
 KEYWORDS = ['software', 'activity', 'update']

@@ -1,3 +1,5 @@
+# Copyright (C) 2008, One Laptop Per Child
+# Copyright (C) 2009, Tomeu Vizoso
 # Copyright (C) 2015, Martin Abente Lahaye - <tch@sugarlabs.org>
 #
 # This program is free software; you can redistribute it and/or modify
@@ -19,6 +21,7 @@ from gettext import ngettext
 import locale
 import logging
 
+from gi.repository import GLib
 from gi.repository import GObject
 from gi.repository import Gtk
 
@@ -60,9 +63,17 @@ class SystemUpdaterView(SectionView):
 
         self._update_box = None
         self._progress_pane = None
-        self._model = model
-        self._switch_to_update_box(['package0=version0', 'package1=version1'])
 
+        self._model = model.SystemUpdaterModel()
+        self._model.connect('progress', self.__progress_cb)
+        self._model.connect('finished', self.__finished_cb)
+
+        self._initialize()
+
+    def _initialize(self):
+        top_message = _('Initializing...')
+        self._top_label.set_markup('<big>%s</big>' % top_message)
+        self._refresh()
 
     def _switch_to_update_box(self, packages):
         if self._update_box in self.get_children():
@@ -88,10 +99,14 @@ class SystemUpdaterView(SectionView):
         if self._progress_pane in self.get_children():
             return
 
-        if self._model.get_state() == updater.STATE_CHECKING:
+        if self._model.get_state() == self._model.STATE_REFRESHING:
+            top_message = _('Refreshing cache...')
+        elif self._model.get_state() == self._model.STATE_CHECKING:
             top_message = _('Checking for updates...')
-        else:
+        elif self._model.get_state() == self._model.STATE_UPDATING:
             top_message = _('Installing updates...')
+        else:
+            top_message = '???'
         self._top_label.set_markup('<big>%s</big>' % top_message)
 
         if self._update_box in self.get_children():
@@ -117,15 +132,15 @@ class SystemUpdaterView(SectionView):
             self.remove(self._update_box)
             self._update_box = None
 
-    def __progress_cb(self, model, state, package_name, progress):
-        if state == updater.STATE_CHECKING:
+    def __progress_cb(self, model, state, progress):
+        if self._model.get_state() == self._model.STATE_REFRESHING:
+            message = _('Refreshing cache...')
+        elif self._model.get_state() == self._model.STATE_CHECKING:
             message = _('Looking for updates...')
-        elif state == updater.STATE_DOWNLOADING:
-            message = _('Downloading %s...') % package_name
-        elif state == updater.STATE_UPDATING:
-            message = _('Updating %s...') % package_name
+        elif self._model.get_state() == self._model.STATE_UPDATING:
+            message = _('Updating ...')
         else:
-            message = '...'
+            message = '???'
 
         self._switch_to_progress_pane()
         self._progress_pane.set_message(message)
@@ -145,12 +160,12 @@ class SystemUpdaterView(SectionView):
 
         self._top_label.set_markup('<big>%s</big>' % top_message)
 
-        if not available_packges:
+        if not available_packages:
             self._clear_center()
         else:
             self._switch_to_update_box(packages)
 
-    def __error_cb(self, model, packages):
+    def __error_cb(self, model):
         logging.debug('SystemUpdater.__error_cb')
         top_message = _('Can\'t connect to the activity server')
         self._top_label.set_markup('<big>%s</big>' % top_message)
@@ -163,18 +178,47 @@ class SystemUpdaterView(SectionView):
         self._refresh()
 
     def _refresh(self):
-        self._model.check_updates()
+        GLib.idle_add(self._model.refresh)
 
     def __install_button_clicked_cb(self, button):
-        self._model.update(self._update_box.get_packages_to_update())
+        GLib.idle_add(self._model.update,
+                      self._update_box.get_packages_to_update())
 
     def __cancel_button_clicked_cb(self, button):
         self._model.cancel()
 
-    def __finished_cb(self, model, installed_packages, failed_packages,
-                      cancelled):
-        num_installed = len(installed_packages)
-        logging.debug('SystemUpdater.__finished_cb')
+    def __finished_cb(self, model, state, result, packages):
+        logging.debug('__finished_cb')
+        if self._model.get_state() == self._model.STATE_REFRESHING:
+            self._refreshed()
+        elif self._model.get_state() == self._model.STATE_CHECKING:
+            self._checked(packages)
+        elif state == self._model.STATE_UPDATING:
+            self._updated(packages)
+
+    def _refreshed(self):
+        GLib.idle_add(self._model.check)
+
+    def _checked(self, packages):
+        available_packages = len(packages)
+        if not available_packages:
+            top_message = _('Your software is up-to-date')
+        else:
+            top_message = ngettext('You can install %s update',
+                                   'You can install %s updates',
+                                   available_packages)
+            top_message = top_message % available_packages
+            top_message = GObject.markup_escape_text(top_message)
+
+        self._top_label.set_markup('<big>%s</big>' % top_message)
+
+        if not available_packages:
+            self._clear_center()
+        else:
+            self._switch_to_update_box(packages)
+
+    def _updated(self, packages):
+        num_installed = len(packages)
         top_message = ngettext('%s update was installed',
                                '%s updates were installed', num_installed)
         top_message = top_message % num_installed
@@ -271,7 +315,7 @@ class UpdateBox(Gtk.VBox):
         self._update_install_button()
 
     def _update_total_size_label(self):
-        markup = _('Download size: %s') % '0')
+        markup = _('Download size: %s') % '0'
         self._size_label.set_markup(markup)
 
     def _update_install_button(self):
@@ -292,7 +336,7 @@ class UpdateBox(Gtk.VBox):
 class PackageList(Gtk.TreeView):
 
     def __init__(self, packages):
-        list_model = UpdateListModel(packages)
+        list_model = PackageListModel(packages)
         Gtk.TreeView.__init__(self, list_model)
 
         self.set_reorderable(False)
@@ -343,13 +387,14 @@ class PackageListModel(Gtk.ListStore):
     SELECTED = 3
 
     def __init__(self, packages):
-        Gtk.ListStore.__init__(self, str, str, bool)
+        Gtk.ListStore.__init__(self, str, str, str, bool)
 
-        for package in packages
+        for package in packages:
             _id = package
             _package, _version = _id.split('=')
-            row[self.ID] = _id
-            row[self.PACKAGE] = _package
-            row[self.VERSION] = _version
-            row[self.SELECTED] = True
+            row = []
+            row.append(_id)
+            row.append(_package)
+            row.append(_version)
+            row.append(True)
             self.append(row)
