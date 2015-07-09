@@ -132,13 +132,13 @@ class SystemUpdaterView(SectionView):
             self.remove(self._update_box)
             self._update_box = None
 
-    def __progress_cb(self, model, state, progress):
+    def __progress_cb(self, model, state, progress, description):
         if self._model.get_state() == self._model.STATE_REFRESHING:
             message = _('Refreshing cache...')
         elif self._model.get_state() == self._model.STATE_CHECKING:
             message = _('Looking for updates...')
         elif self._model.get_state() == self._model.STATE_UPDATING:
-            message = _('Updating ...')
+            message = _('Updating %s...') % description
         else:
             message = '???'
 

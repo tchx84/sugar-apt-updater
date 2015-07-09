@@ -29,7 +29,7 @@ class SystemUpdaterModel(GObject.GObject):
     STATE_UPDATING = 3
 
     progress_signal = GObject.Signal('progress',
-                                     arg_types=([int, float]))
+                                     arg_types=([int, float, object]))
     finished_signal = GObject.Signal('finished',
                                      arg_types=([int, bool, object]))
 
@@ -37,6 +37,7 @@ class SystemUpdaterModel(GObject.GObject):
         GObject.GObject.__init__(self)
         self._client = apt.AptClient()
         self._state = None
+        self._client.clean(wait=True)
 
     def get_state(self):
         return self._state
@@ -54,7 +55,6 @@ class SystemUpdaterModel(GObject.GObject):
         logging.debug('check-in')
         self._state = self.STATE_CHECKING
         transaction = self._client.upgrade_system()
-        transaction.connect('progress-details-changed', self.__details_cb)
         transaction.connect('dependencies-changed', self.__check_finished_cb)
         GLib.idle_add(transaction.simulate)
         logging.debug('check-out')
@@ -63,7 +63,7 @@ class SystemUpdaterModel(GObject.GObject):
         logging.debug('update-in')
         self._state = self.STATE_UPDATING
         transaction = self._client.upgrade_packages(packages)
-        transaction.connect('progress-details-changed', self.__details_cb)
+        transaction.connect('progress-download-changed', self.__download_cb)
         transaction.connect('finished', self.__update_finished_cb)
         transaction.run()
         logging.debug('update-out')
@@ -103,4 +103,10 @@ class SystemUpdaterModel(GObject.GObject):
         elif self._state == self.STATE_UPDATING:
             progress = 1.0
 
-        self.progress_signal.emit(self._state, progress)
+        self.progress_signal.emit(self._state, progress, None)
+
+    def __download_cb(self, transaction, uri, status, description,
+                      total_bytes, current_bytes, extra):
+        logging.debug('__download_cb %s %s %s',
+                      description, str(current_bytes), str(total_bytes))
+        self.progress_signal.emit(self._state, float(current_bytes) / float(total_bytes), description)
