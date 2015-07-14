@@ -38,6 +38,8 @@ class SystemUpdaterModel(GObject.GObject):
                                      arg_types=([int, object]))
     cancellable_signal = GObject.Signal('cancellable',
                                         arg_types=([bool]))
+    size_signal = GObject.Signal('size',
+                                 arg_types=([int]))
 
     def __init__(self):
         GObject.GObject.__init__(self)
@@ -66,6 +68,13 @@ class SystemUpdaterModel(GObject.GObject):
         self._transaction.connect('dependencies-changed', self.__check_finished_cb)
         GLib.idle_add(self._transaction.simulate)
         logging.debug('check-out')
+
+    def check_size(self, packages):
+        logging.debug('check-size-in')
+        transaction = self._client.upgrade_packages(packages)
+        transaction.connect('download-changed', self.__check_size_cb)
+        GLib.idle_add(transaction.simulate)
+        logging.debug('check-size-out')
 
     def update(self, packages):
         logging.debug('update-in')
@@ -136,3 +145,7 @@ class SystemUpdaterModel(GObject.GObject):
     def __cancellable_cb(self, transaction, cancellable):
         logging.debug('__cancellable_cb %r', cancellable)
         self.cancellable_signal.emit(cancellable)
+
+    def __check_size_cb(self, transaction, download):
+        logging.debug('__check_size_cb %d', download)
+        self.size_signal.emit(download)

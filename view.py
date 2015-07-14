@@ -68,6 +68,7 @@ class SystemUpdaterView(SectionView):
         self._model.connect('progress', self.__progress_cb)
         self._model.connect('finished', self.__finished_cb)
         self._model.connect('cancellable', self.__cancellable_cb)
+        self._model.connect('size', self.__size_cb)
 
         self._initialize()
 
@@ -92,6 +93,8 @@ class SystemUpdaterView(SectionView):
             self._update_box.install_button.connect(
                 'clicked',
                 self.__install_button_clicked_cb)
+            self._update_box._package_list.props.model.connect(
+                'row-changed', self.__selection_changed_cb)
 
         self.pack_start(self._update_box, expand=True, fill=True, padding=0)
         self._update_box.show()
@@ -214,6 +217,14 @@ class SystemUpdaterView(SectionView):
         else:
             self._switch_to_success(packages)
 
+    def __size_cb(self, model, size):
+        if self._update_box:
+            self._update_box._update_total_size_label(size)
+
+    def __selection_changed_cb(self, list_model, path, iterator):
+        logging.debug('__selection_changed_cb')
+        self._model.check_size(self._update_box.get_packages_to_update())
+
     def _refreshed(self):
         GLib.idle_add(self._model.check)
 
@@ -329,14 +340,14 @@ class UpdateBox(Gtk.VBox):
         bottom_box.pack_start(self.install_button, False, True, 0)
         self.install_button.show()
 
-        self._update_total_size_label()
+        self._update_total_size_label('...')
 
     def __row_changed_cb(self, list_model, path, iterator):
-        self._update_total_size_label()
+        self._update_total_size_label('...')
         self._update_install_button()
 
-    def _update_total_size_label(self):
-        markup = _('Download size: %s') % '0'
+    def _update_total_size_label(self, size):
+        markup = _('Download size: %s') % str(size)
         self._size_label.set_markup(markup)
 
     def _update_install_button(self):
