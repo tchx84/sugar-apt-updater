@@ -4,3 +4,4 @@
 [O] determine individual packages size.
 [ ] use polkit authentication for more complex operations.
 [X] allow cancel.
+[ ] Decouple progress from download details to enrich update box.
