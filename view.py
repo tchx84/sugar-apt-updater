@@ -67,7 +67,7 @@ class SystemUpdaterView(SectionView):
         self._model = model.SystemUpdaterModel()
         self._model.connect('progress', self.__progress_cb)
         self._model.connect('finished', self.__finished_cb)
-        self._model.connect('error', self.__error_cb)
+        self._model.connect('cancellable', self.__cancellable_cb)
 
         self._initialize()
 
@@ -124,6 +124,28 @@ class SystemUpdaterView(SectionView):
             self._progress_pane, expand=True, fill=False, padding=0)
         self._progress_pane.show()
 
+    def _switch_to_success(self, packages):
+        if self._model.get_state() == self._model.STATE_REFRESHING:
+            self._refreshed()
+        elif self._model.get_state() == self._model.STATE_CHECKING:
+            self._checked(packages)
+        elif self._model.get_state() == self._model.STATE_UPDATING:
+            self._updated(packages)
+
+    def _switch_to_error(self):
+        top_message = _('Can\'t connect to the activity server')
+        self._top_label.set_markup('<big>%s</big>' % top_message)
+        self._bottom_label.set_markup(
+            _('Verify your connection to internet and try again, '
+              'or try again later'))
+        self._clear_center()
+
+    def _switch_to_cancelled(self):
+        top_message = _('The updates have been cancelled')
+        self._top_label.set_markup('<big>%s</big>' % top_message)
+        self._bottom_label.set_text('')
+        self._clear_center()
+
     def _clear_center(self):
         if self._progress_pane in self.get_children():
             self.remove(self._progress_pane)
@@ -166,15 +188,6 @@ class SystemUpdaterView(SectionView):
         else:
             self._switch_to_update_box(packages)
 
-    def __error_cb(self, model, code):
-        logging.debug('SystemUpdater.__error_cb')
-        top_message = _('Can\'t connect to the activity server')
-        self._top_label.set_markup('<big>%s</big>' % top_message)
-        self._bottom_label.set_markup(
-            _('Verify your connection to internet and try again, '
-              'or try again later'))
-        self._clear_center()
-
     def __refresh_button_clicked_cb(self, button):
         self._refresh()
 
@@ -188,14 +201,18 @@ class SystemUpdaterView(SectionView):
     def __cancel_button_clicked_cb(self, button):
         self._model.cancel()
 
-    def __finished_cb(self, model, state, result, packages):
+    def __cancellable_cb(self, model, cancellable):
+        if self._progress_pane:
+            self._progress_pane.set_cancellable(cancellable)
+
+    def __finished_cb(self, model, status, packages):
         logging.debug('__finished_cb')
-        if self._model.get_state() == self._model.STATE_REFRESHING:
-            self._refreshed()
-        elif self._model.get_state() == self._model.STATE_CHECKING:
-            self._checked(packages)
-        elif state == self._model.STATE_UPDATING:
-            self._updated(packages)
+        if status == model.EXIT_FAILED:
+            self._switch_to_error()
+        elif status == model.EXIT_CANCELLED:
+            self._switch_to_cancelled()
+        else:
+            self._switch_to_success(packages)
 
     def _refreshed(self):
         GLib.idle_add(self._model.check)
@@ -266,6 +283,9 @@ class ProgressPane(Gtk.VBox):
 
     def set_progress(self, fraction):
         self._progress.props.fraction = fraction
+
+    def set_cancellable(self, cancellable):
+        self.cancel_button.set_sensitive(cancellable)
 
 
 class UpdateBox(Gtk.VBox):
