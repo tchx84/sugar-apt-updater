@@ -66,6 +66,7 @@ class SystemUpdaterView(SectionView):
 
         self._model = model.SystemUpdaterModel()
         self._model.connect('progress', self.__progress_cb)
+        self._model.connect('progress-detail', self.__detail_cb)
         self._model.connect('finished', self.__finished_cb)
         self._model.connect('cancellable', self.__cancellable_cb)
         self._model.connect('size', self.__size_cb)
@@ -158,19 +159,12 @@ class SystemUpdaterView(SectionView):
             self.remove(self._update_box)
             self._update_box = None
 
-    def __progress_cb(self, model, progress, description):
-        if self._model.get_state() == self._model.STATE_REFRESHING:
-            message = _('Refreshing cache...')
-        elif self._model.get_state() == self._model.STATE_CHECKING:
-            message = _('Looking for updates...')
-        elif self._model.get_state() == self._model.STATE_UPDATING:
-            message = _('Updating %s...') % description
-        else:
-            message = '???'
-
+    def __progress_cb(self, model, progress):
         self._switch_to_progress_pane()
-        self._progress_pane.set_message(message)
         self._progress_pane.set_progress(progress)
+
+    def __detail_cb(self, model, description):
+        self._progress_pane.set_message(description)
 
     def __updates_available_cb(self, model, packages):
         logging.debug('PackagesUpdater.__updates_available_cb')
