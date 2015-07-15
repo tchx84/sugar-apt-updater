@@ -203,6 +203,11 @@ class SystemUpdaterView(SectionView):
             self._model.check_size(packages)
 
     def _refreshed(self):
+        # XXX do everything here until we can detect progress on simulate
+        top_message = _('Checking for updates...')
+        self._top_label.set_markup('<big>%s</big>' % top_message)
+        self._progress_pane.set_message(_('Please wait...'))
+        self._progress_pane.set_progress(1.0)
         GLib.idle_add(self._model.check)
 
     def _checked(self, packages):
