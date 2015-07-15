@@ -33,7 +33,7 @@ class SystemUpdaterModel(GObject.GObject):
     EXIT_CANCELLED = 2
 
     progress_signal = GObject.Signal('progress',
-                                     arg_types=([int, float, object]))
+                                     arg_types=([float, object]))
     finished_signal = GObject.Signal('finished',
                                      arg_types=([int, object]))
     cancellable_signal = GObject.Signal('cancellable',
@@ -124,23 +124,16 @@ class SystemUpdaterModel(GObject.GObject):
                      current_bytes, total_bytes, current_cps, eta):
         logging.debug('__details_cb %d:%d bytes', current_bytes, total_bytes)
         logging.debug('__details_cb %d:%d items', current_items, total_items)
-
-        if self._state == self.STATE_REFRESHING:
-            progress = 0
-            if total_items > 0:
-                progress = float(current_items) / float(total_items)
-        elif self._state == self.STATE_CHECKING:
-            progress = 1.0
-        elif self._state == self.STATE_UPDATING:
-            progress = 1.0
-
-        self.progress_signal.emit(self._state, progress, None)
+        progress = 0
+        if total_items > 0:
+            progress = float(current_items) / float(total_items)
+        self.progress_signal.emit(progress, None)
 
     def __download_cb(self, transaction, uri, status, description,
                       total_bytes, current_bytes, extra):
         logging.debug('__download_cb %s %s %s',
                       description, str(current_bytes), str(total_bytes))
-        self.progress_signal.emit(self._state, float(current_bytes) / float(total_bytes), description)
+        self.progress_signal.emit(float(current_bytes) / float(total_bytes), description)
 
     def __cancellable_cb(self, transaction, cancellable):
         logging.debug('__cancellable_cb %r', cancellable)
