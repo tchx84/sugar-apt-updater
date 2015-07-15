@@ -166,25 +166,6 @@ class SystemUpdaterView(SectionView):
     def __detail_cb(self, model, description):
         self._progress_pane.set_message(description)
 
-    def __updates_available_cb(self, model, packages):
-        logging.debug('PackagesUpdater.__updates_available_cb')
-        available_packages = len(packages)
-        if not available_packages:
-            top_message = _('Your software is up-to-date')
-        else:
-            top_message = ngettext('You can install %s update',
-                                   'You can install %s updates',
-                                   available_packages)
-            top_message = top_message % available_packages
-            top_message = GObject.markup_escape_text(top_message)
-
-        self._top_label.set_markup('<big>%s</big>' % top_message)
-
-        if not available_packages:
-            self._clear_center()
-        else:
-            self._switch_to_update_box(packages)
-
     def __refresh_button_clicked_cb(self, button):
         self._refresh()
 
@@ -217,7 +198,9 @@ class SystemUpdaterView(SectionView):
 
     def __selection_changed_cb(self, list_model, path, iterator):
         logging.debug('__selection_changed_cb')
-        self._model.check_size(self._update_box.get_packages_to_update())
+        packages = self._update_box.get_packages_to_update()
+        if packages:
+            self._model.check_size(packages)
 
     def _refreshed(self):
         GLib.idle_add(self._model.check)
@@ -239,6 +222,7 @@ class SystemUpdaterView(SectionView):
             self._clear_center()
         else:
             self._switch_to_update_box(packages)
+            GLib.idle_add(self._model.check_size, self._update_box.get_packages_to_update())
 
     def _updated(self, packages):
         num_installed = len(packages)
@@ -334,14 +318,20 @@ class UpdateBox(Gtk.VBox):
         bottom_box.pack_start(self.install_button, False, True, 0)
         self.install_button.show()
 
-        self._update_total_size_label('...')
+        self._update_total_size_label(_('calculating...'))
 
     def __row_changed_cb(self, list_model, path, iterator):
-        self._update_total_size_label('...')
+        packages = self.get_packages_to_update()
+        if packages:
+            self._update_total_size_label(_('calculating...'))
+        else:
+            self._update_total_size_label(0)
         self._update_install_button()
 
     def _update_total_size_label(self, size):
-        markup = _('Download size: %s') % str(size)
+        if not isinstance(size, str):
+            size = _format_size(size)
+        markup = _('Download size: %s') % size
         self._size_label.set_markup(markup)
 
     def _update_install_button(self):
@@ -424,3 +414,19 @@ class PackageListModel(Gtk.ListStore):
             row.append(_version)
             row.append(True)
             self.append(row)
+
+
+def _format_size(size):
+    """Convert a given size in bytes to a nicer better readable unit"""
+    if size == 0:
+        # TRANS: download size is 0
+        return _('None')
+    elif size < 1024:
+        # TRANS: download size of very small updates
+        return _('1 KB')
+    elif size < 1024 * 1024:
+        # TRANS: download size of small updates, e.g. '250 KB'
+        return locale.format_string(_('%.0f KB'), size / 1024.0)
+    else:
+        # TRANS: download size of updates, e.g. '2.3 MB'
+        return locale.format_string(_('%.1f MB'), size / 1024.0 / 1024)
