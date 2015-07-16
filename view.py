@@ -105,7 +105,7 @@ class SystemUpdaterView(SectionView):
             return
 
         if self._model.get_state() == self._model.STATE_REFRESHING:
-            top_message = _('Refreshing cache...')
+            top_message = _('Refreshing sources...')
         elif self._model.get_state() == self._model.STATE_CHECKING:
             top_message = _('Checking for updates...')
         elif self._model.get_state() == self._model.STATE_UPDATING:
