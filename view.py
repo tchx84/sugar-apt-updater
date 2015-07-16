@@ -182,9 +182,11 @@ class SystemUpdaterView(SectionView):
     def __cancellable_cb(self, model, cancellable):
         if self._progress_pane:
             self._progress_pane.set_cancellable(cancellable)
+        self._set_toolbar_cancellable(cancellable)
 
     def __finished_cb(self, model, status, packages):
         logging.debug('__finished_cb')
+        self._set_toolbar_cancellable(True)
         if status == model.EXIT_FAILED:
             self._switch_to_error()
         elif status == model.EXIT_CANCELLED:
@@ -204,6 +206,7 @@ class SystemUpdaterView(SectionView):
 
     def _refreshed(self):
         # XXX do everything here until we can detect progress on simulate
+        self._set_toolbar_cancellable(False)
         top_message = _('Checking for updates...')
         self._top_label.set_markup('<big>%s</big>' % top_message)
         self._progress_pane.set_message(_('Please wait...'))
@@ -237,6 +240,10 @@ class SystemUpdaterView(SectionView):
         top_message = GObject.markup_escape_text(top_message)
         self._top_label.set_markup('<big>%s</big>' % top_message)
         self._clear_center()
+
+    def _set_toolbar_cancellable(self, cancellable):
+        self.props.is_cancellable = cancellable
+        self.props.is_valid = cancellable
 
     def undo(self):
         self._model.cancel()
