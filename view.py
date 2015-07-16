@@ -26,10 +26,9 @@ from gi.repository import GObject
 from gi.repository import Gtk
 
 from sugar3.graphics import style
-from sugar3.graphics.icon import Icon, CellRendererIcon
+from sugar3.graphics.icon import Icon
 
 from jarabe.controlpanel.sectionview import SectionView
-from jarabe.model import bundleregistry
 
 
 class SystemUpdaterView(SectionView):
@@ -159,6 +158,51 @@ class SystemUpdaterView(SectionView):
             self.remove(self._update_box)
             self._update_box = None
 
+    def _refresh(self):
+        GLib.idle_add(self._model.refresh)
+
+    def _refreshed(self):
+        # XXX do everything here until we can detect progress on simulate
+        self._set_toolbar_cancellable(False)
+        top_message = _('Checking for updates...')
+        self._top_label.set_markup('<big>%s</big>' % top_message)
+        self._progress_pane.set_message(_('Please wait...'))
+        self._progress_pane.set_progress(1.0)
+        GLib.idle_add(self._model.check)
+
+    def _checked(self, packages):
+        available_packages = len(packages)
+        if not available_packages:
+            top_message = _('Your software is up-to-date')
+        else:
+            top_message = ngettext('You can install %s update',
+                                   'You can install %s updates',
+                                   available_packages)
+            top_message = top_message % available_packages
+            top_message = GObject.markup_escape_text(top_message)
+
+        self._top_label.set_markup('<big>%s</big>' % top_message)
+
+        if not available_packages:
+            self._clear_center()
+        else:
+            self._switch_to_update_box(packages)
+            GLib.idle_add(self._model.check_size,
+                          self._update_box.get_packages_to_update())
+
+    def _updated(self, packages):
+        num_installed = len(packages)
+        top_message = ngettext('%s update was installed',
+                               '%s updates were installed', num_installed)
+        top_message = top_message % num_installed
+        top_message = GObject.markup_escape_text(top_message)
+        self._top_label.set_markup('<big>%s</big>' % top_message)
+        self._clear_center()
+
+    def _set_toolbar_cancellable(self, cancellable):
+        self.props.is_cancellable = cancellable
+        self.props.is_valid = cancellable
+
     def __progress_cb(self, model, progress):
         self._switch_to_progress_pane()
         self._progress_pane.set_progress(progress)
@@ -168,9 +212,6 @@ class SystemUpdaterView(SectionView):
 
     def __refresh_button_clicked_cb(self, button):
         self._refresh()
-
-    def _refresh(self):
-        GLib.idle_add(self._model.refresh)
 
     def __install_button_clicked_cb(self, button):
         GLib.idle_add(self._model.update,
@@ -203,47 +244,6 @@ class SystemUpdaterView(SectionView):
         packages = self._update_box.get_packages_to_update()
         if packages:
             self._model.check_size(packages)
-
-    def _refreshed(self):
-        # XXX do everything here until we can detect progress on simulate
-        self._set_toolbar_cancellable(False)
-        top_message = _('Checking for updates...')
-        self._top_label.set_markup('<big>%s</big>' % top_message)
-        self._progress_pane.set_message(_('Please wait...'))
-        self._progress_pane.set_progress(1.0)
-        GLib.idle_add(self._model.check)
-
-    def _checked(self, packages):
-        available_packages = len(packages)
-        if not available_packages:
-            top_message = _('Your software is up-to-date')
-        else:
-            top_message = ngettext('You can install %s update',
-                                   'You can install %s updates',
-                                   available_packages)
-            top_message = top_message % available_packages
-            top_message = GObject.markup_escape_text(top_message)
-
-        self._top_label.set_markup('<big>%s</big>' % top_message)
-
-        if not available_packages:
-            self._clear_center()
-        else:
-            self._switch_to_update_box(packages)
-            GLib.idle_add(self._model.check_size, self._update_box.get_packages_to_update())
-
-    def _updated(self, packages):
-        num_installed = len(packages)
-        top_message = ngettext('%s update was installed',
-                               '%s updates were installed', num_installed)
-        top_message = top_message % num_installed
-        top_message = GObject.markup_escape_text(top_message)
-        self._top_label.set_markup('<big>%s</big>' % top_message)
-        self._clear_center()
-
-    def _set_toolbar_cancellable(self, cancellable):
-        self.props.is_cancellable = cancellable
-        self.props.is_valid = cancellable
 
     def undo(self):
         self._model.cancel()
@@ -332,13 +332,12 @@ class UpdateBox(Gtk.VBox):
 
         self._update_total_size_label(_('calculating...'))
 
-    def __row_changed_cb(self, list_model, path, iterator):
-        packages = self.get_packages_to_update()
-        if packages:
-            self._update_total_size_label(_('calculating...'))
-        else:
-            self._update_total_size_label(0)
-        self._update_install_button()
+    def get_packages_to_update(self):
+        packages_to_update = []
+        for row in self._package_list.props.model:
+            if row[PackageListModel.SELECTED]:
+                packages_to_update.append(row[PackageListModel.ID])
+        return packages_to_update
 
     def _update_total_size_label(self, size):
         if not isinstance(size, str):
@@ -353,12 +352,13 @@ class UpdateBox(Gtk.VBox):
                 return
         self.install_button.props.sensitive = False
 
-    def get_packages_to_update(self):
-        packages_to_update = []
-        for row in self._package_list.props.model:
-            if row[PackageListModel.SELECTED]:
-                packages_to_update.append(row[PackageListModel.ID])
-        return packages_to_update
+    def __row_changed_cb(self, list_model, path, iterator):
+        packages = self.get_packages_to_update()
+        if packages:
+            self._update_total_size_label(_('calculating...'))
+        else:
+            self._update_total_size_label(0)
+        self._update_install_button()
 
 
 class PackageList(Gtk.TreeView):

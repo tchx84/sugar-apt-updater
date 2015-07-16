@@ -57,10 +57,14 @@ class SystemUpdaterModel(GObject.GObject):
         logging.debug('refresh-in')
         self._state = self.STATE_REFRESHING
         self._transaction = self._client.update_cache()
-        self._transaction.connect('progress-details-changed', self.__refresh_progress_cb)
-        self._transaction.connect('progress-download-changed', self.__refresh_detail_cb)
-        self._transaction.connect('finished', self.__refresh_finished_cb)
-        self._transaction.connect('cancellable-changed', self.__cancellable_cb)
+        self._transaction.connect('progress-details-changed',
+                                  self.__refresh_progress_cb)
+        self._transaction.connect('progress-download-changed',
+                                  self.__refresh_detail_cb)
+        self._transaction.connect('finished',
+                                  self.__refresh_finished_cb)
+        self._transaction.connect('cancellable-changed',
+                                  self.__cancellable_cb)
         self._transaction.run()
         logging.debug('refresh-out')
 
@@ -68,7 +72,8 @@ class SystemUpdaterModel(GObject.GObject):
         logging.debug('check-in')
         self._state = self.STATE_CHECKING
         self._transaction = self._client.upgrade_system()
-        self._transaction.connect('dependencies-changed', self.__check_finished_cb)
+        self._transaction.connect('dependencies-changed',
+                                  self.__check_finished_cb)
         GLib.idle_add(self._transaction.simulate)
         logging.debug('check-out')
 
@@ -83,9 +88,12 @@ class SystemUpdaterModel(GObject.GObject):
         logging.debug('update-in')
         self._state = self.STATE_UPDATING
         self._transaction = self._client.upgrade_packages(packages)
-        self._transaction.connect('progress-download-changed', self.__update_progress_cb)
-        self._transaction.connect('finished', self.__update_finished_cb)
-        self._transaction.connect('cancellable-changed', self.__cancellable_cb)
+        self._transaction.connect('progress-download-changed',
+                                  self.__update_progress_cb)
+        self._transaction.connect('finished',
+                                  self.__update_finished_cb)
+        self._transaction.connect('cancellable-changed',
+                                  self.__cancellable_cb)
         self._transaction.run()
         logging.debug('update-out')
 
@@ -124,20 +132,21 @@ class SystemUpdaterModel(GObject.GObject):
         self.finished_signal.emit(self._convert_status(status), packages)
 
     def __refresh_progress_cb(self, transaction, current_items, total_items,
-                     current_bytes, total_bytes, current_cps, eta):
-        logging.debug('__refresh_progress_cb %d:%d items', current_items, total_items)
+                              current_bytes, total_bytes, current_cps, eta):
+        logging.debug('__refresh_progress_cb %d:%d items',
+                      current_items, total_items)
         progress = 0
         if total_items > 0:
             progress = float(current_items) / float(total_items)
         self.progress_signal.emit(progress)
 
     def __refresh_detail_cb(self, transaction, uri, status, description,
-                             total_bytes, current_bytes, extra):
+                            total_bytes, current_bytes, extra):
         logging.debug('__refresh_detail_cb %s', description)
         self.progress_detail_signal.emit(description)
 
     def __update_progress_cb(self, transaction, uri, status, description,
-                      total_bytes, current_bytes, extra):
+                             total_bytes, current_bytes, extra):
         logging.debug('__update_progress_cb %s %s %s',
                       description, str(current_bytes), str(total_bytes))
         self.progress_signal.emit(float(current_bytes) / float(total_bytes))
