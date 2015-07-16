@@ -206,6 +206,8 @@ class SystemUpdaterView(SectionView):
     def __progress_cb(self, model, progress):
         self._switch_to_progress_pane()
         self._progress_pane.set_progress(progress)
+        if self.props.is_valid is True:
+            self.props.is_valid = False
 
     def __detail_cb(self, model, description):
         self._progress_pane.set_message(description)
