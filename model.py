@@ -156,10 +156,8 @@ class SystemUpdaterModel(GObject.GObject):
                               current_bytes, total_bytes, current_cps, eta):
         logging.debug('__refresh_progress_cb %d:%d items',
                       current_items, total_items)
-        progress = 0
         if total_items > 0:
-            progress = float(current_items) / float(total_items)
-        self.progress_signal.emit(progress)
+            self.progress_signal.emit(float(current_items) / float(total_items))
 
     def __refresh_detail_cb(self, transaction, uri, status, description,
                             total_bytes, current_bytes, extra):
