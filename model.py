@@ -16,7 +16,6 @@
 
 import logging
 
-from gi.repository import GLib
 from gi.repository import GObject
 from aptdaemon import client as apt
 
@@ -57,7 +56,8 @@ class SystemUpdaterModel(GObject.GObject):
         self._state = self.STATE_CLEANING
         self._transaction = self._client.clean()
         self._transaction.connect('finished', self.__clean_finished_cb)
-        GLib.idle_add(self._transaction.run)
+        self._transaction.run(reply_handler=self.__reply_cb,
+                              error_handler=self.__error_cb)
         logging.debug('clean-out')
 
     def refresh(self):
@@ -72,7 +72,8 @@ class SystemUpdaterModel(GObject.GObject):
                                   self.__refresh_finished_cb)
         self._transaction.connect('cancellable-changed',
                                   self.__cancellable_cb)
-        GLib.idle_add(self._transaction.run)
+        self._transaction.run(reply_handler=self.__reply_cb,
+                              error_handler=self.__error_cb)
         logging.debug('refresh-out')
 
     def check(self):
@@ -81,14 +82,16 @@ class SystemUpdaterModel(GObject.GObject):
         self._transaction = self._client.upgrade_system(safe_mode=False)
         self._transaction.connect('dependencies-changed',
                                   self.__check_finished_cb)
-        GLib.idle_add(self._transaction.simulate)
+        self._transaction.simulate(reply_handler=self.__reply_cb,
+                                   error_handler=self.__error_cb)
         logging.debug('check-out')
 
     def check_size(self, packages):
         logging.debug('check-size-in')
-        transaction = self._client.upgrade_packages(packages)
-        transaction.connect('download-changed', self.__check_size_cb)
-        GLib.idle_add(transaction.simulate)
+        self._transaction = self._client.upgrade_packages(packages)
+        self._transaction.connect('download-changed', self.__check_size_cb)
+        self._transaction.simulate(reply_handler=self.__reply_cb,
+                                   error_handler=self.__error_cb)
         logging.debug('check-size-out')
 
     def update(self, packages):
@@ -101,7 +104,8 @@ class SystemUpdaterModel(GObject.GObject):
                                   self.__update_finished_cb)
         self._transaction.connect('cancellable-changed',
                                   self.__cancellable_cb)
-        GLib.idle_add(self._transaction.run)
+        self._transaction.run(reply_handler=self.__reply_cb,
+                              error_handler=self.__error_cb)
         logging.debug('update-out')
 
     def cancel(self):
@@ -116,6 +120,12 @@ class SystemUpdaterModel(GObject.GObject):
         else:
             status = self.EXIT_FAILED
         return status
+
+    def __reply_cb(self):
+        pass
+
+    def __error_cb(self, error):
+        raise error
 
     def __clean_finished_cb(self, transaction, status):
         logging.debug('__clean_finished_cb %s', status)
