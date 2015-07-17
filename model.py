@@ -71,7 +71,7 @@ class SystemUpdaterModel(GObject.GObject):
     def check(self):
         logging.debug('check-in')
         self._state = self.STATE_CHECKING
-        self._transaction = self._client.upgrade_system()
+        self._transaction = self._client.upgrade_system(safe_mode=False)
         self._transaction.connect('dependencies-changed',
                                   self.__check_finished_cb)
         GLib.idle_add(self._transaction.simulate)
