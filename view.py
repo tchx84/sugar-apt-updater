@@ -43,6 +43,7 @@ class SystemUpdaterView(SectionView):
         self._top_label.set_line_wrap(True)
         self._top_label.set_justify(Gtk.Justification.LEFT)
         self._top_label.props.xalign = 0
+        self._top_label.set_markup('<big>%s</big>' % _('Cleaning...'))
         self.pack_start(self._top_label, False, True, 0)
         self._top_label.show()
 
@@ -62,6 +63,7 @@ class SystemUpdaterView(SectionView):
 
         self._update_box = None
         self._progress_pane = None
+        self._set_toolbar_cancellable(False)
 
         self._model = model.SystemUpdaterModel()
         self._model.connect('progress', self.__progress_cb)
@@ -70,12 +72,7 @@ class SystemUpdaterView(SectionView):
         self._model.connect('cancellable', self.__cancellable_cb)
         self._model.connect('size', self.__size_cb)
 
-        self._initialize()
-
-    def _initialize(self):
-        top_message = _('Initializing...')
-        self._top_label.set_markup('<big>%s</big>' % top_message)
-        self._refresh()
+        GLib.idle_add(self._model.clean)
 
     def _switch_to_update_box(self, packages):
         if self._update_box in self.get_children():
@@ -100,10 +97,15 @@ class SystemUpdaterView(SectionView):
         self._update_box.show()
 
     def _switch_to_progress_pane(self):
+        if self.props.is_valid is True:
+            self.props.is_valid = False
+
         if self._progress_pane in self.get_children():
             return
 
-        if self._model.get_state() == self._model.STATE_REFRESHING:
+        if self._model.get_state() == self._model.STATE_CLEANING:
+            top_message = _('Cleaning...')
+        elif self._model.get_state() == self._model.STATE_REFRESHING:
             top_message = _('Refreshing sources...')
         elif self._model.get_state() == self._model.STATE_CHECKING:
             top_message = _('Checking for updates...')
@@ -128,7 +130,9 @@ class SystemUpdaterView(SectionView):
         self._progress_pane.show()
 
     def _switch_to_success(self, packages):
-        if self._model.get_state() == self._model.STATE_REFRESHING:
+        if self._model.get_state() == self._model.STATE_CLEANING:
+            self._cleaned()
+        elif self._model.get_state() == self._model.STATE_REFRESHING:
             self._refreshed()
         elif self._model.get_state() == self._model.STATE_CHECKING:
             self._checked(packages)
@@ -158,8 +162,13 @@ class SystemUpdaterView(SectionView):
             self.remove(self._update_box)
             self._update_box = None
 
+    def _cleaned(self):
+        # XXX do not trigger a transaction creation from transaction callback
+        GLib.idle_add(self._refresh)
+
     def _refresh(self):
-        GLib.idle_add(self._model.refresh)
+        self._model.refresh()
+        self._switch_to_progress_pane()
 
     def _refreshed(self):
         # XXX do everything here until we can detect progress on simulate
@@ -190,6 +199,10 @@ class SystemUpdaterView(SectionView):
             GLib.idle_add(self._model.check_size,
                           self._update_box.get_packages_to_update())
 
+    def _update(self):
+        self._model.update(self._update_box.get_packages_to_update())
+        self._switch_to_progress_pane()
+
     def _updated(self, packages):
         num_installed = len(packages)
         top_message = ngettext('%s update was installed',
@@ -206,8 +219,6 @@ class SystemUpdaterView(SectionView):
     def __progress_cb(self, model, progress):
         self._switch_to_progress_pane()
         self._progress_pane.set_progress(progress)
-        if self.props.is_valid is True:
-            self.props.is_valid = False
 
     def __detail_cb(self, model, description):
         self._progress_pane.set_message(description)
@@ -216,8 +227,7 @@ class SystemUpdaterView(SectionView):
         self._refresh()
 
     def __install_button_clicked_cb(self, button):
-        GLib.idle_add(self._model.update,
-                      self._update_box.get_packages_to_update())
+        self._update()
 
     def __cancel_button_clicked_cb(self, button):
         self._model.cancel()

@@ -23,7 +23,7 @@ from aptdaemon import client as apt
 
 class SystemUpdaterModel(GObject.GObject):
 
-    STATE_IDLE = 0
+    STATE_CLEANING = 0
     STATE_REFRESHING = 1
     STATE_CHECKING = 2
     STATE_UPDATING = 3
@@ -48,10 +48,17 @@ class SystemUpdaterModel(GObject.GObject):
         self._client = apt.AptClient()
         self._state = None
         self._transaction = None
-        self._client.clean(wait=True)
 
     def get_state(self):
         return self._state
+
+    def clean(self):
+        logging.debug('clean-in')
+        self._state = self.STATE_CLEANING
+        self._transaction = self._client.clean()
+        self._transaction.connect('finished', self.__clean_finished_cb)
+        GLib.idle_add(self._transaction.run)
+        logging.debug('clean-out')
 
     def refresh(self):
         logging.debug('refresh-in')
@@ -65,7 +72,7 @@ class SystemUpdaterModel(GObject.GObject):
                                   self.__refresh_finished_cb)
         self._transaction.connect('cancellable-changed',
                                   self.__cancellable_cb)
-        self._transaction.run()
+        GLib.idle_add(self._transaction.run)
         logging.debug('refresh-out')
 
     def check(self):
@@ -94,7 +101,7 @@ class SystemUpdaterModel(GObject.GObject):
                                   self.__update_finished_cb)
         self._transaction.connect('cancellable-changed',
                                   self.__cancellable_cb)
-        self._transaction.run()
+        GLib.idle_add(self._transaction.run)
         logging.debug('update-out')
 
     def cancel(self):
@@ -109,6 +116,10 @@ class SystemUpdaterModel(GObject.GObject):
         else:
             status = self.EXIT_FAILED
         return status
+
+    def __clean_finished_cb(self, transaction, status):
+        logging.debug('__clean_finished_cb %s', status)
+        self.finished_signal.emit(self._convert_status(status), None)
 
     def __refresh_finished_cb(self, transaction, status):
         logging.debug('__refresh_finished_cb %s', status)
