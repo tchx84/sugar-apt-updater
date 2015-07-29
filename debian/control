@@ -1,0 +1,20 @@
+Source: sugar-aptdaemon-client
+Section: misc
+Priority: optional
+Maintainer: Martin Abente Lahaye <tch@sugarlabs.org>
+Standards-Version: 3.9.4
+Homepage: https://github.com/tchx84/sugar-aptdaemon-client
+#Vcs-Git: git@github.com:tchx84/sugar-aptdaemon-client.git
+#Vcs-Browser: https://github.com/tchx84/sugar-aptdaemon-client
+Build-Depends: cdbs, debhelper (>= 8.0.0)
+XS-Python-Version: >=2.7
+
+Package: sugar-aptdaemon-client
+Architecture: all
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: An updater for the Sugar Learning Platform
+ This package provides a new control panel section to the
+ Sugar Learning Platform that allow users to update their
+ activities using the system's package manager.
+ .
+ An aptdaemon client for the Sugar Learning Platform.

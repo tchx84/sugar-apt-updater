@@ -1,0 +1,3 @@
+__init__.py /usr/share/sugar/extensions/cpsection/systemupdater/
+model.py /usr/share/sugar/extensions/cpsection/systemupdater/
+view.py /usr/share/sugar/extensions/cpsection/systemupdater/
